@@ -20,6 +20,20 @@ func (opts UnmarshalOptions) UnmarshalBcdString(input []byte) (*ddv1.BcdString, 
 	if len(input) == 0 {
 		return nil, fmt.Errorf("insufficient data for BcdString: got %d, want at least 1", len(input))
 	}
+	// An unwritten field reads back as all-0xFF. Real cards carry it (a Gen1
+	// driver card held VuDataBlockCounter = 0xFFFF in one vehicle record), and
+	// failing here rejected the whole card file over one unset field. Return no
+	// value; a field with any other non-digit nibble is still an error.
+	allFF := true
+	for _, b := range input {
+		if b != 0xff {
+			allFF = false
+			break
+		}
+	}
+	if allFF {
+		return nil, nil
+	}
 	value, err := decodeBCD(input)
 	if err != nil {
 		return nil, err

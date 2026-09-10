@@ -87,6 +87,25 @@ func TestUnmarshalBcdString(t *testing.T) {
 	}
 }
 
+func TestUnmarshalBcdString_Unwritten(t *testing.T) {
+	// An unwritten field reads back as all-0xFF (seen as VuDataBlockCounter on
+	// a real Gen1 driver card). It must yield no value, not fail the file.
+	opts := UnmarshalOptions{}
+	for _, input := range [][]byte{{0xff}, {0xff, 0xff}} {
+		got, err := opts.UnmarshalBcdString(input)
+		if err != nil {
+			t.Errorf("UnmarshalBcdString(%x) unexpected error: %v", input, err)
+		}
+		if got != nil {
+			t.Errorf("UnmarshalBcdString(%x) = %v, want nil", input, got)
+		}
+	}
+	// Only a fully unwritten field qualifies; a stray 0xFF is still corrupt.
+	if _, err := opts.UnmarshalBcdString([]byte{0xff, 0x12}); err == nil {
+		t.Error("UnmarshalBcdString(ff12) expected error, got nil")
+	}
+}
+
 func TestAppendBcdString(t *testing.T) {
 	tests := []struct {
 		name      string
