@@ -111,3 +111,45 @@ func TestEvents_Generation2(t *testing.T) {
 		})
 	}
 }
+
+// TestEvents_UnrecordedEventTypeIsPreserved is the event-record sibling of
+// TestFaults_UnrecordedFaultTypeIsPreserved: event and fault records share the
+// same 24-byte layout and the same EventFaultType enum, so an unrecorded 0xFF
+// type byte used to fail the whole card here too.
+func TestEvents_UnrecordedEventTypeIsPreserved(t *testing.T) {
+	opts := UnmarshalOptions{}
+
+	// Control: a mappable event type still parses semantically.
+	known := buildCardFaultRecord(0x00) // GENERAL_NO_FURTHER_DETAILS
+	events, err := opts.unmarshalEventsData(known)
+	if err != nil {
+		t.Fatalf("Unmarshal of a known event type failed: %v", err)
+	}
+	if recs := events.GetEvents(); len(recs) != 1 || !recs[0].GetValid() {
+		t.Fatalf("Known event type: want 1 valid record, got %d", len(recs))
+	}
+
+	unrecorded := buildCardFaultRecord(0xFF)
+	events, err = opts.unmarshalEventsData(unrecorded)
+	if err != nil {
+		t.Fatalf("Unmarshal of an unrecorded event type failed: %v", err)
+	}
+	recs := events.GetEvents()
+	if len(recs) != 1 {
+		t.Fatalf("want 1 record, got %d", len(recs))
+	}
+	if recs[0].GetValid() {
+		t.Error("want the unparseable record marked not valid")
+	}
+	if diff := cmp.Diff(unrecorded, recs[0].GetRawData()); diff != "" {
+		t.Errorf("Raw data not preserved (-want +got):\n%s", diff)
+	}
+
+	marshaled, err := (MarshalOptions{}).MarshalEventsData(events)
+	if err != nil {
+		t.Fatalf("Marshal failed: %v", err)
+	}
+	if diff := cmp.Diff(unrecorded, marshaled); diff != "" {
+		t.Errorf("Binary round-trip mismatch (-want +got):\n%s", diff)
+	}
+}

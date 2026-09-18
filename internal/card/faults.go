@@ -65,7 +65,15 @@ func (opts UnmarshalOptions) unmarshalFaultsData(data []byte) (*cardv1.FaultsDat
 			// Valid record: parse semantic data
 			rec.SetValid(true)
 			if err := opts.unmarshalFaultRecord(recordData, rec); err != nil {
-				return nil, err
+				// One unparseable record must not lose the whole card.
+				// Tachograph data writes 0xFF into fields that were never
+				// recorded, and those bytes reach enums with no mapping for
+				// them. Preserve the record verbatim instead, exactly as the
+				// non-valid branch above does, which also keeps the binary
+				// round-trip byte-exact.
+				rec = &cardv1.FaultsData_Record{}
+				rec.SetValid(false)
+				rec.SetRawData(recordData)
 			}
 		}
 
